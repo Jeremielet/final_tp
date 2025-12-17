@@ -1,0 +1,66 @@
+# Configuration du pipeline de détection de fraude
+
+# Données
+data:
+  raw_path: "data/raw/fraud_synth_10000.csv"
+  processed_path: "data/processed"
+
+# Features à sélectionner
+features:
+  selected:
+    - is_foreign_transaction
+    - account_age_days
+    - country_risk
+    - num_transactions_24h
+    - transaction_amount
+    - device_type
+
+  target: fraud
+
+  # Variables catégorielles à encoder
+  categorical:
+    - country_risk
+    - device_type
+
+# Split des données
+split:
+  test_size: 0.2
+  random_state: 42
+  stratify: true
+
+# Random Forest - Plages de recherche Optuna
+random_forest:
+  n_estimators:
+    min: 50
+    max: 200
+  max_depth:
+    min: 5
+    max: 15
+  min_samples_split:
+    min: 2
+    max: 10
+  min_samples_leaf:
+    min: 1
+    max: 5
+  max_features:
+    choices: [sqrt, log2]
+  class_weight: balanced
+  random_state: 42
+
+# Optuna
+optuna:
+  n_trials: 30
+  direction: maximize
+  metric: f1_score
+
+# MLflow
+mlflow:
+  experiment_name: "Fraud Detection"
+  tracking_uri: "mlruns"
+
+# Artifacts
+artifacts:
+  models_dir: "artifacts/models"
+  metrics_dir: "artifacts/metrics"
+  visualizations_dir: "artifacts/visualizations"
+  model_filename: "random_forest_model.pkl"
