@@ -1,0 +1,77 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb_checkpoints
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Data files (comment out if you want to track them)
+data/raw/*.csv
+data/processed/*.csv
+data/external/*.csv
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+!data/external/.gitkeep
+
+# Model artifacts
+artifacts/models/*.pkl
+artifacts/models/*.joblib
+artifacts/models/*.h5
+artifacts/metrics/*.json
+artifacts/visualizations/*.png
+artifacts/visualizations/*.jpg
+!artifacts/models/.gitkeep
+!artifacts/metrics/.gitkeep
+!artifacts/visualizations/.gitkeep
+
+# MLflow
+mlruns/
+mlartifacts/
+
+# Environment variables
+.env
+.env.local
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Logs
+*.log
+logs/
+
+# OS
+Thumbs.db
+.DS_Store
