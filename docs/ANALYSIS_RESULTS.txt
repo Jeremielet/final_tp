@@ -1,0 +1,241 @@
+================================================================================
+RÉSULTATS DE L'ANALYSE - FRAUD DETECTION PROJECT
+================================================================================
+Date: 17 Décembre 2024
+Dataset: fraud_synth_10000.csv
+================================================================================
+
+1. VUE D'ENSEMBLE DU DATASET
+--------------------------------------------------------------------------------
+✓ 10,000 transactions analysées
+✓ 9 variables (8 features + 1 cible)
+✓ Aucune valeur manquante
+✓ Dataset déséquilibré : 5.51% de fraudes (ratio 1:17)
+
+⚠️ PROBLÈME IDENTIFIÉ : Dataset déséquilibré
+   → Nécessite des techniques de rééquilibrage (SMOTE, undersampling, etc.)
+   → Attention aux métriques : privilégier F1-Score, Recall, Precision sur Accuracy
+
+
+2. ANALYSE DES FEATURES - IMPACT SUR LA FRAUDE
+================================================================================
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ FEATURES TRÈS IMPORTANTES (À GARDER ABSOLUMENT)                            │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+1. is_foreign_transaction ⭐⭐⭐⭐⭐
+   Corrélation : +0.10 (la plus forte)
+   Impact : +78.5% pour les fraudes
+   Interprétation :
+   - Les transactions étrangères sont BEAUCOUP PLUS susceptibles d'être frauduleuses
+   - 44% des fraudes sont des transactions étrangères vs 24% pour les normales
+   - FEATURE CLÉ pour la détection
+
+2. account_age_days ⭐⭐⭐⭐⭐
+   Corrélation : -0.096 (négative forte)
+   Impact : -23.9% pour les fraudes
+   Interprétation :
+   - Les comptes RÉCENTS sont plus vulnérables à la fraude
+   - Comptes normaux : ~2536 jours (7 ans)
+   - Comptes fraudés : ~1931 jours (5.3 ans)
+   - FEATURE CLÉ : les fraudeurs ciblent les comptes plus jeunes
+
+3. country_risk ⭐⭐⭐⭐⭐
+   Variable catégorielle CRITIQUE
+   Impact :
+   - Pays à HAUT risque : 12.90% de fraude (×3.7 vs moyenne)
+   - Pays à risque MOYEN : 6.23% de fraude (×1.1 vs moyenne)
+   - Pays à FAIBLE risque : 3.43% de fraude (×0.6 vs moyenne)
+   Interprétation :
+   - Différence MASSIVE entre les niveaux de risque
+   - FEATURE INDISPENSABLE pour la classification
+
+4. num_transactions_24h ⭐⭐⭐⭐
+   Corrélation : +0.054
+   Impact : +15.1% pour les fraudes
+   Interprétation :
+   - Les fraudeurs font plus de transactions en 24h (2.85 vs 2.48)
+   - Peut indiquer un comportement de test de carte volée
+   - Feature utile pour détecter les comportements suspects
+
+5. transaction_amount ⭐⭐⭐
+   Corrélation : +0.038
+   Impact : +15.3% pour les fraudes
+   Interprétation :
+   - Les transactions frauduleuses sont légèrement plus élevées (52€ vs 45€)
+   - Différence modeste mais statistiquement significative
+   - Feature à garder pour le modèle
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ FEATURES MOYENNEMENT IMPORTANTES (À GARDER)                                │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+6. device_type ⭐⭐⭐
+   Variable catégorielle avec impact modéré
+   Impact :
+   - Mobile : 5.87% de fraude
+   - Tablet : 5.40% de fraude
+   - Desktop : 4.97% de fraude
+   Interprétation :
+   - Différences FAIBLES entre les types d'appareils
+   - Mobile légèrement plus risqué
+   - Feature à garder mais impact limité
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ FEATURES PEU IMPORTANTES (IMPACT MINIMAL)                                  │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+7. transaction_hour ⭐
+   Corrélation : +0.0008 (quasi nulle)
+   Impact : +0.2% (négligeable)
+   Interprétation :
+   - AUCUNE différence entre fraudes et transactions normales
+   - Moyenne identique : ~11h47 pour les deux
+   - ⚠️ CANDIDAT À LA SUPPRESSION (peut créer du bruit)
+
+8. avg_amount_30d ⭐
+   Corrélation : -0.0005 (quasi nulle)
+   Impact : -0.2% (négligeable)
+   Interprétation :
+   - AUCUNE différence entre fraudes et transactions normales
+   - Moyenne identique : ~31€ pour les deux
+   - ⚠️ CANDIDAT À LA SUPPRESSION (peut créer du bruit)
+
+
+3. RECOMMANDATIONS - FEATURES À GARDER
+================================================================================
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ FEATURES FINALES RECOMMANDÉES (6 features)                                 │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+✅ OBLIGATOIRES (5 features) :
+   1. is_foreign_transaction     → Impact +78.5%, corrélation 0.10
+   2. account_age_days           → Impact -23.9%, corrélation -0.096
+   3. country_risk               → Impact massif (3.7x pour high risk)
+   4. num_transactions_24h       → Impact +15.1%, corrélation 0.054
+   5. transaction_amount         → Impact +15.3%, corrélation 0.038
+
+✅ OPTIONNELLE (1 feature) :
+   6. device_type                → Impact modéré, peut aider
+
+❌ À SUPPRIMER (2 features) :
+   - transaction_hour            → Corrélation 0.0008 (inutile)
+   - avg_amount_30d              → Corrélation -0.0005 (inutile)
+
+
+4. STRATÉGIE DE MODÉLISATION RECOMMANDÉE
+================================================================================
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ PRÉTRAITEMENT                                                               │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+1. Encodage des variables catégorielles :
+   - country_risk : One-Hot Encoding (3 catégories)
+   - device_type : One-Hot Encoding (3 catégories)
+
+2. Normalisation :
+   - Standardiser les variables numériques (StandardScaler)
+   - Important pour les modèles sensibles à l'échelle (SVM, NN, etc.)
+
+3. Gestion du déséquilibre :
+   ⚠️ CRITIQUE : Dataset avec seulement 5.51% de fraudes
+   Options recommandées :
+   a) SMOTE (Synthetic Minority Over-sampling) → Recommandé
+   b) Class weights dans le modèle → Simple et efficace
+   c) Undersampling de la classe majoritaire → Perte d'information
+   d) Combinaison SMOTE + undersampling → Équilibre optimal
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ MODÈLES RECOMMANDÉS                                                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+1. XGBoost ⭐⭐⭐⭐⭐
+   - Excellent pour les datasets déséquilibrés
+   - Gère nativement les interactions entre features
+   - Paramètre scale_pos_weight pour gérer le déséquilibre
+   → MODÈLE PRINCIPAL RECOMMANDÉ
+
+2. Random Forest ⭐⭐⭐⭐
+   - Robuste et interprétable
+   - Gère bien les variables catégorielles
+   - Paramètre class_weight pour le déséquilibre
+
+3. Logistic Regression ⭐⭐⭐
+   - Baseline simple et rapide
+   - Bonne interprétabilité
+   - Utile pour comprendre l'impact de chaque feature
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ MÉTRIQUES D'ÉVALUATION                                                      │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+⚠️ NE PAS UTILISER : Accuracy (biaisée par le déséquilibre)
+
+✅ MÉTRIQUES PRINCIPALES :
+   1. Recall (Sensitivity) : Détecter le max de fraudes
+   2. Precision : Minimiser les faux positifs
+   3. F1-Score : Équilibre entre Precision et Recall
+   4. AUC-ROC : Performance globale du modèle
+   5. Confusion Matrix : Analyser TP, TN, FP, FN
+
+✅ MÉTRIQUE BUSINESS :
+   - Coût des faux négatifs (fraudes non détectées) >> Coût des faux positifs
+   - Privilégier un RECALL élevé (min 80-85%)
+   - Accepter une baisse de Precision si nécessaire
+
+
+5. FEATURE ENGINEERING - AMÉLIORATIONS POSSIBLES
+================================================================================
+
+Nouvelles features à créer pour améliorer les performances :
+
+1. transaction_amount_ratio = transaction_amount / avg_amount_30d
+   → Détecter les transactions anormalement élevées
+
+2. is_new_account = 1 si account_age_days < 365 jours
+   → Flag les comptes récents (plus à risque)
+
+3. is_high_frequency = 1 si num_transactions_24h > seuil
+   → Détecter les comportements suspects
+
+4. risk_score = combinaison de country_risk + is_foreign_transaction
+   → Score de risque composite
+
+5. hour_category = "night" (22h-6h), "day" (6h-18h), "evening" (18h-22h)
+   → Peut révéler des patterns cachés
+
+
+6. RÉSUMÉ EXÉCUTIF
+================================================================================
+
+✅ FEATURES À GARDER (6 sur 8) :
+   1. is_foreign_transaction     ⭐⭐⭐⭐⭐
+   2. account_age_days           ⭐⭐⭐⭐⭐
+   3. country_risk               ⭐⭐⭐⭐⭐
+   4. num_transactions_24h       ⭐⭐⭐⭐
+   5. transaction_amount         ⭐⭐⭐
+   6. device_type                ⭐⭐⭐
+
+❌ FEATURES À SUPPRIMER (2 sur 8) :
+   - transaction_hour
+   - avg_amount_30d
+
+🎯 OBJECTIF :
+   - Construire un modèle avec Recall > 85%
+   - Minimiser les fraudes non détectées
+   - Utiliser XGBoost avec SMOTE pour gérer le déséquilibre
+
+📊 QUALITÉ DES DONNÉES :
+   - Excellente : Aucune valeur manquante
+   - Dataset propre et prêt pour la modélisation
+
+================================================================================
+FIN DU RAPPORT D'ANALYSE
+================================================================================
