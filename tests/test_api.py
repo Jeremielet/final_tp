@@ -17,7 +17,14 @@ from api.main import app
 @pytest.fixture
 def client():
     """Fixture pour créer un client de test."""
-    with TestClient(app) as test_client:
+    # Support pour les anciennes et nouvelles versions de starlette/fastapi
+    try:
+        # Nouvelle version avec context manager
+        with TestClient(app) as test_client:
+            yield test_client
+    except TypeError:
+        # Ancienne version sans context manager
+        test_client = TestClient(app)
         yield test_client
 
 
