@@ -13,11 +13,15 @@ sys.path.insert(0, str(project_root))
 
 from api.main import app
 
-# Client de test
-client = TestClient(app)
+
+@pytest.fixture
+def client():
+    """Fixture pour créer un client de test."""
+    with TestClient(app) as test_client:
+        yield test_client
 
 
-def test_health_check():
+def test_health_check(client):
     """Test du health check."""
     response = client.get("/health")
     assert response.status_code == 200
@@ -27,7 +31,7 @@ def test_health_check():
     assert "threshold" in data
 
 
-def test_predict_legitimate_transaction():
+def test_predict_legitimate_transaction(client):
     """Test prédiction transaction légitime."""
     transaction = {
         "transaction_amount": 150.50,
@@ -49,7 +53,7 @@ def test_predict_legitimate_transaction():
     assert data["fraud_probability"] <= 1
 
 
-def test_predict_suspicious_transaction():
+def test_predict_suspicious_transaction(client):
     """Test prédiction transaction suspecte."""
     transaction = {
         "transaction_amount": 5000.00,
@@ -68,7 +72,7 @@ def test_predict_suspicious_transaction():
     assert data["risk_level"] in ["Low", "Medium", "High"]
 
 
-def test_predict_batch():
+def test_predict_batch(client):
     """Test prédiction batch."""
     batch = {
         "transactions": [
@@ -103,7 +107,7 @@ def test_predict_batch():
     assert data["total_transactions"] == 2
 
 
-def test_invalid_country_risk():
+def test_invalid_country_risk(client):
     """Test avec country_risk invalide."""
     transaction = {
         "transaction_amount": 150.50,
@@ -118,7 +122,7 @@ def test_invalid_country_risk():
     assert response.status_code == 422  # Validation error
 
 
-def test_missing_field():
+def test_missing_field(client):
     """Test avec champ manquant."""
     transaction = {
         "transaction_amount": 150.50,
@@ -133,7 +137,7 @@ def test_missing_field():
     assert response.status_code == 422  # Validation error
 
 
-def test_root_endpoint():
+def test_root_endpoint(client):
     """Test de la page d'accueil."""
     response = client.get("/")
     assert response.status_code == 200
