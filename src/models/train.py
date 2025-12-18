@@ -2,11 +2,12 @@
 Module d'entraînement du modèle Random Forest avec Optuna et MLflow.
 
 Ce module :
-1. Split les données en train/test
-2. Optimise les hyperparamètres avec Optuna
-3. Entraîne le meilleur modèle
-4. Track tout avec MLflow
-5. Sauvegarde le modèle
+1. Split les données en train/val/test (60/20/20)
+2. Optimise les hyperparamètres avec Optuna + Cross-Validation
+3. Optimise le threshold pour maximiser le Recall
+4. Entraîne le meilleur modèle
+5. Track tout avec MLflow
+6. Sauvegarde le modèle avec le threshold optimal
 """
 
 import numpy as np
@@ -23,34 +24,54 @@ import mlflow.sklearn
 import pickle
 from pathlib import Path
 
+# Import du module d'optimisation avancée
+from src.models.optimize import (
+    optimize_and_train,
+    evaluate_with_threshold
+)
 
-def split_data(X, y, test_size=0.2, random_state=42):
+
+def split_data(X, y, test_size=0.2, val_size=0.2, random_state=42):
     """
-    Split les données en train et test.
+    Split les données en train/val/test.
 
     Args:
         X: Features
         y: Cible
         test_size: Proportion du test set (default: 0.2)
+        val_size: Proportion du validation set (default: 0.2)
         random_state: Graine aléatoire (default: 42)
 
     Returns:
-        Tuple (X_train, X_test, y_train, y_test)
+        Tuple (X_train, X_val, X_test, y_train, y_val, y_test)
     """
-    X_train, X_test, y_train, y_test = train_test_split(
+    # Premier split : Train+Val / Test
+    X_temp, X_test, y_temp, y_test = train_test_split(
         X, y,
         test_size=test_size,
         random_state=random_state,
-        stratify=y  # Garde la même proportion de fraudes
+        stratify=y
+    )
+
+    # Deuxième split : Train / Val
+    # val_size_adjusted pour avoir val_size par rapport au dataset total
+    val_size_adjusted = val_size / (1 - test_size)
+    X_train, X_val, y_train, y_val = train_test_split(
+        X_temp, y_temp,
+        test_size=val_size_adjusted,
+        random_state=random_state,
+        stratify=y_temp
     )
 
     print(f"✓ Données divisées :")
     print(f"  Train : {len(X_train)} samples ({len(X_train)/len(X)*100:.1f}%)")
     print(f"    - Fraudes : {y_train.sum()} ({y_train.sum()/len(y_train)*100:.2f}%)")
+    print(f"  Val   : {len(X_val)} samples ({len(X_val)/len(X)*100:.1f}%)")
+    print(f"    - Fraudes : {y_val.sum()} ({y_val.sum()/len(y_val)*100:.2f}%)")
     print(f"  Test  : {len(X_test)} samples ({len(X_test)/len(X)*100:.1f}%)")
     print(f"    - Fraudes : {y_test.sum()} ({y_test.sum()/len(y_test)*100:.2f}%)")
 
-    return X_train, X_test, y_train, y_test
+    return X_train, X_val, X_test, y_train, y_val, y_test
 
 
 def calculate_metrics(y_true, y_pred, y_pred_proba):
@@ -218,21 +239,29 @@ def save_model(model, output_path="artifacts/models/random_forest_model.pkl"):
     return output_path
 
 
-def train_with_mlflow(X, y, experiment_name="Fraud Detection", n_trials=30):
+def train_with_mlflow(X, y, experiment_name="Fraud Detection", n_trials=30, cv_folds=5):
     """
-    Pipeline complet d'entraînement avec tracking MLflow.
+    Pipeline complet d'entraînement avec optimisation avancée et tracking MLflow.
+
+    Ce pipeline :
+    1. Split train/val/test (60/20/20)
+    2. Optimise les hyperparamètres avec Optuna + Cross-Validation
+    3. Optimise le threshold pour maximiser le Recall
+    4. Évalue sur le test set avec le threshold optimal
+    5. Track tout avec MLflow
 
     Args:
         X: Features complètes
         y: Cible complète
         experiment_name: Nom de l'expérience MLflow
-        n_trials: Nombre d'essais Optuna
+        n_trials: Nombre d'essais Optuna (default: 30)
+        cv_folds: Nombre de folds pour la cross-validation (default: 5)
 
     Returns:
-        Tuple (model, metrics)
+        Tuple (model, threshold, metrics)
     """
     print("\n" + "="*80)
-    print("ENTRAÎNEMENT DU MODÈLE RANDOM FOREST")
+    print("ENTRAÎNEMENT DU MODÈLE RANDOM FOREST AVEC OPTIMISATION AVANCÉE")
     print("="*80)
 
     # Configurer MLflow
@@ -241,44 +270,72 @@ def train_with_mlflow(X, y, experiment_name="Fraud Detection", n_trials=30):
     # Démarrer un run MLflow
     with mlflow.start_run():
 
-        # 1. Split des données
-        X_train, X_test, y_train, y_test = split_data(X, y)
+        # 1. Split des données en train/val/test (60/20/20)
+        X_train, X_val, X_test, y_train, y_val, y_test = split_data(X, y)
 
         # Logger les infos du dataset
         mlflow.log_param("n_samples", len(X))
         mlflow.log_param("n_features", X.shape[1])
         mlflow.log_param("train_size", len(X_train))
+        mlflow.log_param("val_size", len(X_val))
         mlflow.log_param("test_size", len(X_test))
         mlflow.log_param("fraud_rate", f"{y.sum()/len(y)*100:.2f}%")
+        mlflow.log_param("n_trials", n_trials)
+        mlflow.log_param("cv_folds", cv_folds)
 
-        # 2. Optimisation des hyperparamètres
-        best_params = optimize_hyperparameters(X_train, y_train, n_trials=n_trials)
+        # 2. Optimisation complète : Hyperparamètres + Threshold
+        model, best_threshold, best_params = optimize_and_train(
+            X_train, y_train,
+            X_val, y_val,
+            n_trials=n_trials,
+            cv_folds=cv_folds
+        )
 
-        # Logger les hyperparamètres
+        # Logger les hyperparamètres optimaux
         for key, value in best_params.items():
             mlflow.log_param(key, value)
 
-        # 3. Entraînement du modèle
-        model = train_model(X_train, y_train, best_params)
+        # Logger le threshold optimal
+        mlflow.log_param("best_threshold", best_threshold)
 
-        # 4. Évaluation
-        metrics = evaluate_model(model, X_test, y_test)
+        # 3. Évaluation sur le test set avec le threshold optimal
+        print(f"\n📊 Évaluation finale sur le Test Set")
+        print("-" * 80)
+        metrics = evaluate_with_threshold(model, X_test, y_test, threshold=best_threshold)
 
-        # Logger les métriques dans MLflow
+        print(f"\n  Threshold : {metrics['threshold']:.4f}")
+        print(f"  Accuracy  : {metrics['accuracy']:.4f}")
+        print(f"  Precision : {metrics['precision']:.4f}")
+        print(f"  Recall    : {metrics['recall']:.4f} ⭐")
+        print(f"  F1-Score  : {metrics['f1_score']:.4f}")
+        print(f"  ROC-AUC   : {metrics['roc_auc']:.4f}")
+        print(f"\n  Confusion Matrix :")
+        print(f"    TN={metrics['true_negatives']} | FP={metrics['false_positives']}")
+        print(f"    FN={metrics['false_negatives']} | TP={metrics['true_positives']}")
+
+        # Logger toutes les métriques dans MLflow
         for key, value in metrics.items():
             mlflow.log_metric(key, value)
 
-        # 5. Sauvegarder le modèle
+        # 4. Sauvegarder le modèle
         model_path = save_model(model)
 
-        # Logger le modèle dans MLflow
+        # Sauvegarder aussi le threshold optimal
+        threshold_path = "artifacts/models/best_threshold.txt"
+        Path(threshold_path).parent.mkdir(parents=True, exist_ok=True)
+        with open(threshold_path, 'w') as f:
+            f.write(f"{best_threshold:.6f}")
+        print(f"✓ Threshold sauvegardé : {threshold_path}")
+
+        # Logger le modèle et le threshold dans MLflow
         mlflow.sklearn.log_model(model, "model")
         mlflow.log_artifact(model_path)
+        mlflow.log_artifact(threshold_path)
 
         print("\n✓ Entraînement terminé et tracké dans MLflow")
         print("="*80 + "\n")
 
-        return model, metrics
+        return model, best_threshold, metrics
 
 
 if __name__ == "__main__":
@@ -292,7 +349,14 @@ if __name__ == "__main__":
     df_clean = preprocess_data(df)
     X, y = build_features(df_clean)
 
-    # Entraîner avec MLflow
-    model, metrics = train_with_mlflow(X, y, n_trials=10)  # 10 trials pour le test
+    # Entraîner avec MLflow et optimisation avancée
+    model, threshold, metrics = train_with_mlflow(
+        X, y,
+        n_trials=10,  # 10 trials pour le test
+        cv_folds=3    # 3 folds pour le test
+    )
 
-    print(f"\n✓ Test terminé - F1-Score : {metrics['f1_score']:.4f}")
+    print(f"\n✓ Test terminé")
+    print(f"  Threshold optimal : {threshold:.4f}")
+    print(f"  F1-Score : {metrics['f1_score']:.4f}")
+    print(f"  Recall : {metrics['recall']:.4f}")

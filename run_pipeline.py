@@ -82,12 +82,12 @@ def main(data_path: str = "data/raw/fraud_synth_10000.csv",
     print()
 
     # ========================================================================
-    # ÉTAPE 4 : Entraînement avec Optuna + MLflow
+    # ÉTAPE 4 : Entraînement avec Optuna + MLflow + Optimisation avancée
     # ========================================================================
-    print("🤖 ÉTAPE 4/5 : Entraînement du modèle")
+    print("🤖 ÉTAPE 4/5 : Entraînement du modèle avec optimisation avancée")
     print("-" * 80)
 
-    model, metrics = train_with_mlflow(
+    model, best_threshold, metrics = train_with_mlflow(
         X, y,
         experiment_name=experiment_name,
         n_trials=n_trials
@@ -100,15 +100,23 @@ def main(data_path: str = "data/raw/fraud_synth_10000.csv",
     print("=" * 80)
     print("✅ PIPELINE TERMINÉ AVEC SUCCÈS")
     print("=" * 80)
-    print(f"\n📊 Résultats finaux :")
+    print(f"\n📊 Résultats finaux sur le Test Set :")
+    print(f"  - Threshold : {best_threshold:.4f} (optimisé pour maximiser le Recall)")
     print(f"  - Accuracy  : {metrics['accuracy']:.4f}")
     print(f"  - Precision : {metrics['precision']:.4f}")
     print(f"  - Recall    : {metrics['recall']:.4f} ⭐")
     print(f"  - F1-Score  : {metrics['f1_score']:.4f}")
     print(f"  - ROC-AUC   : {metrics['roc_auc']:.4f}")
 
-    print(f"\n💾 Modèle sauvegardé :")
-    print(f"  - Fichier : artifacts/models/random_forest_model.pkl")
+    print(f"\n💾 Fichiers sauvegardés :")
+    print(f"  - Modèle : artifacts/models/random_forest_model.pkl")
+    print(f"  - Threshold : artifacts/models/best_threshold.txt")
+
+    print(f"\n🔧 Optimisations appliquées :")
+    print(f"  - Cross-Validation ({n_trials} trials Optuna)")
+    print(f"  - Hyperparamètres optimisés avec StratifiedKFold")
+    print(f"  - Threshold optimisé sur le validation set")
+    print(f"  - Évaluation finale sur le test set")
 
     print(f"\n📈 MLflow :")
     print(f"  - Experiment : {experiment_name}")
